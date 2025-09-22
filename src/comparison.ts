@@ -317,7 +317,7 @@ async function main() {
               r.label === label &&
               r.runs === maxRuns
           )!;
-          const totalBytes = row.sizeBytes * row.runs; // uses plaintext size
+          const totalBytes = row.sizeBytes * row.runs;
           const mbps = totalBytes / (1024 * 1024) / (row.wallMs / 1000);
           console.log(
             `${algo} ${mode} ${op.toUpperCase()} ${label} x${maxRuns} → ~${format(

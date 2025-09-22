@@ -96,18 +96,6 @@ export function createEnvelope(opts: {
   );
   const sig = ed25519Sign(sigPayload, opts.senderSigPrivPem);
 
-  // 5) Debug (client)
-  try {
-    console.log("DBG ephPubPem =", b64(utf8(ephPubPem)));
-    console.log("DBG recipPub  =", b64(utf8(opts.recipientKxPubPem)));
-    console.log("DBG iv        =", b64(iv));
-    console.log("DBG salt      =", b64(salt));
-    console.log("DBG shared    =", b64(shared));
-    console.log("DBG hkdfKey   =", b64(key));
-    console.log("DBG ct.len    =", ct.length);
-    console.log("DBG ct_b64    =", b64(ct)); // ⬅️ add this
-  } catch {}
-
   return {
     v: 1,
     alg: {
@@ -149,7 +137,7 @@ export function openEnvelope(
     console.log("SRV shared    =", b64(shared));
     console.log("SRV hkdfKey   =", b64(key));
     console.log("SRV ct.len    =", ct.length);
-    console.log("SRV ct_b64    =", env.ct_b64); // ⬅️ add this
+    console.log("SRV ct_b64    =", env.ct_b64);
   } catch {}
 
   // 3) Verify signature (encrypt-then-sign)
@@ -165,17 +153,8 @@ export function openEnvelope(
     throw new Error("Signature verification failed");
   }
 
-  // 4) TEMPORARY: decrypt with padding disabled to inspect plaintext bytes
-  //    (If this succeeds, the padding byte we'll print tells us exactly why unpad fails)
   const aesRaw = new Cipher(key, { mode: "CBC", iv, padding: "None" });
   const ptPadded = aesRaw.decrypt(ct);
-  try {
-    console.log("SRV ptPadded_b64 =", b64(ptPadded));
-    console.log("SRV lastByte     =", ptPadded[ptPadded.length - 1] ?? -1);
-    // Also show last block for clarity
-    const lb = ptPadded.slice(Math.max(0, ptPadded.length - 16));
-    console.log("SRV lastBlock_b64=", b64(lb));
-  } catch {}
 
   // 5) REAL decrypt (with PKCS7)
   const aes = new Cipher(key, { mode: "CBC", iv, padding: "PKCS7" });

@@ -45,13 +45,13 @@ export function cbcEncryptRaw(
   assertMultipleOf(data.length, bs, "Plaintext");
 
   const out = new Uint8Array(data.length);
-  const prev = cloneBytes(iv); // ⬅️ was iv.slice()
+  const prev = cloneBytes(iv);
   const tmp = new Uint8Array(bs);
 
   for (let i = 0; i < data.length; i += bs) {
     for (let j = 0; j < bs; j++) tmp[j] = data[i + j] ^ prev[j];
     cipher.encryptBlock(tmp, 0, out, i);
-    prev.set(out.subarray(i, i + bs)); // update register (NOT the original iv)
+    prev.set(out.subarray(i, i + bs)); // update register
   }
   return out;
 }
@@ -66,7 +66,7 @@ export function cbcDecryptRaw(
   assertMultipleOf(data.length, bs, "Ciphertext");
 
   const out = new Uint8Array(data.length);
-  const prev = cloneBytes(iv); // ⬅️ was iv.slice()
+  const prev = cloneBytes(iv);
   const tmp = new Uint8Array(bs);
 
   for (let i = 0; i < data.length; i += bs) {
@@ -108,7 +108,7 @@ export function cfbEncryptRaw(
     throw new Error("Plaintext must be multiple of segmentSize");
 
   const out = new Uint8Array(data.length);
-  const reg = cloneBytes(iv); // ⬅️ was iv.slice()
+  const reg = cloneBytes(iv);
   const ks = new Uint8Array(cipher.blockSize);
 
   for (let i = 0; i < data.length; i += segmentSize) {
@@ -151,7 +151,7 @@ export function ofbXorRaw(cipher: BlockCipher, data: Bytes, iv: Bytes): Bytes {
   if (iv.length !== cipher.blockSize)
     throw new Error(`IV must be ${cipher.blockSize} bytes`);
   const out = new Uint8Array(data.length);
-  const reg = cloneBytes(iv); // ⬅️ was iv.slice()
+  const reg = cloneBytes(iv);
   const ks = new Uint8Array(cipher.blockSize);
   let idx = cipher.blockSize; // force first refill
 
@@ -175,7 +175,7 @@ export function ctrXorRaw(
   if (counter.length !== cipher.blockSize)
     throw new Error(`Counter must be ${cipher.blockSize} bytes`);
   const out = new Uint8Array(data.length);
-  const ctr = cloneBytes(counter); // ⬅️ was counter.slice()
+  const ctr = cloneBytes(counter);
   const ks = new Uint8Array(cipher.blockSize);
   let idx = cipher.blockSize;
 

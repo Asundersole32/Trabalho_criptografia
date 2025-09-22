@@ -1,8 +1,6 @@
 import { P0, P1, MDS0, MDS1, MDS2, MDS3 } from "./utils/constants.ts";
 import type { BlockCipher } from "./utils/modes.ts";
 
-// --------------------- IMPLEMENTATION ---------------------
-
 export type Session = [Uint32Array, Uint32Array];
 
 const ROUNDS = 16;
@@ -397,7 +395,7 @@ export class TwofishRaw implements BlockCipher {
   private session: Session;
 
   constructor(key: Uint8Array) {
-    this.session = makeSession(key); // your original function
+    this.session = makeSession(key);
   }
 
   encryptBlock(

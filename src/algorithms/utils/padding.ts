@@ -29,8 +29,7 @@ export function pkcs7Unpad(data: Bytes, blockSize: number): Bytes {
     throw new Error("Bad padding");
   }
 
-  // Fixed-iteration check over the last block. (JS can't guarantee true constant time,
-  // but this avoids data-dependent loop counts.)
+  // Fixed-iteration check over the last block.
   let mismatch = 0;
   for (let i = 0; i < blockSize; i++) {
     const idx = len - 1 - i; // walk backward over last block
@@ -41,6 +40,6 @@ export function pkcs7Unpad(data: Bytes, blockSize: number): Bytes {
     throw new Error("Bad padding");
   }
 
-  // Return a copy (not a view) of the unpadded data
+  // Return a copy of the unpadded data
   return data.slice(0, len - padLen);
 }

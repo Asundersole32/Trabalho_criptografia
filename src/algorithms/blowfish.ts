@@ -1,4 +1,3 @@
-// Keep your constants exactly as in your current file:
 import {
   P as P0,
   S0 as S0c,
@@ -32,7 +31,7 @@ export class BlowfishRaw implements BlockCipher {
     this.P = P0.slice();
     this.S = [S0c.slice(), S1c.slice(), S2c.slice(), S3c.slice()];
 
-    // Key schedule (same as your original, minus padding/mode bits)
+    // Key schedule
     let k = key;
     if (k.length < 72) {
       const ext = new Uint8Array(72);
