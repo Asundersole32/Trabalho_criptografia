@@ -2,9 +2,13 @@
     "name": "my-app",
     "type": "module",
     "scripts": {
-        "test": " --expose-gc -r ts-node/register src/comparison.ts"
+        "test": "node --expose-gc -r ts-node/register src/comparison.ts",
+        "eita": "node src/eita.ts"
     },
     "devDependencies": {
         "@types/node": "^24.5.2"
+    },
+    "dependencies": {
+        "ts-node": "^10.9.2"
     }
 }

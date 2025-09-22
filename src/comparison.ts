@@ -14,7 +14,7 @@ import {
   utils,
   AES,
   Counter,
-} from "./algorithms/aes";
+} from "./algorithms/aes.ts";
 
 // ---- small helpers ---------------------------------------------------------
 
