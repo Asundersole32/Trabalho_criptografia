@@ -1,0 +1,10 @@
+{
+    "name": "my-app",
+    "type": "module",
+    "scripts": {
+        "start": "node src/comparison.ts"
+    },
+    "devDependencies": {
+        "@types/node": "^24.5.2"
+    }
+}
