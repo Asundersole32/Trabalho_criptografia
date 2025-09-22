@@ -1,24 +1,35 @@
 // perf.ts
-// Performance harness for the manual AES implementation in ./aes.ts
-// Measures wall time, CPU user/sys, and memory deltas for 1/100/1000 runs
-// with 3 message lengths using CBC + PKCS#7. No Node 'crypto' used.
+// RAW-mode performance harness for AES, Twofish, and Blowfish (manual implementations).
+// Compares ECB and CBC with NO padding (inputs are block-aligned).
+// Uses only raw BlockCipher cores + raw mode helpers; no friendly wrappers, no PKCS#7/5.
 //
 // Run examples:
 //   npx ts-node perf.ts
-//   # or (recommended for cleaner memory readings):
+//   # (recommended for steadier memory readings):
 //   node --expose-gc -r ts-node/register perf.ts
 
-import {
-  ModeOfOperation,
-  padding,
-  utils,
-  AES,
-  Counter,
-} from "./algorithms/aes.ts";
+// ---- raw block ciphers -----------------------------------------------------
+import { AESRaw } from "./algorithms/aes.ts";
+import { TwofishRaw } from "./algorithms/twofish.ts";
+import { BlowfishRaw } from "./algorithms/blowfish.ts";
 
-// ---- small helpers ---------------------------------------------------------
+// ---- generic RAW modes (block-size agnostic) -------------------------------
+import {
+  ecbEncryptRaw,
+  ecbDecryptRaw,
+  cbcEncryptRaw,
+  cbcDecryptRaw,
+  type BlockCipher,
+} from "./algorithms/utils/modes.ts";
+
+// ---- measurement + utils ---------------------------------------------------
+
+type Algo = "AES" | "Twofish" | "Blowfish";
+type Mode = "ECB" | "CBC";
 
 type Metrics = {
+  algo: Algo;
+  mode: Mode;
   label: string;
   op: "encrypt" | "decrypt";
   runs: number;
@@ -32,10 +43,8 @@ type Metrics = {
 };
 
 const MB = (n: number) => n / (1024 * 1024);
-
-function format(n: number, decimals = 3) {
-  return Number.isFinite(n) ? Number(n.toFixed(decimals)) : n;
-}
+const format = (n: number, decimals = 3) =>
+  Number.isFinite(n) ? Number(n.toFixed(decimals)) : n;
 
 function maybeGC() {
   const g = (global as any).gc as (() => void) | undefined;
@@ -83,10 +92,16 @@ function makePRNG(seed = 0x12345678) {
 
 async function main() {
   const prng = makePRNG(0xc0ffee);
-  const key = prng(16); // AES-128
-  const iv = prng(16); // 16B IV for CBC
 
-  // Three message sizes
+  // keys: AES/Twofish use 16B (128-bit); Blowfish accepts arbitrary and does its schedule internally
+  const key16 = prng(16);
+  const keyBF = prng(16); // same length for fairness
+
+  // IVs for CBC (per-block-size)
+  const iv16 = prng(16);
+  const iv8 = prng(8);
+
+  // Three message sizes (all multiples of 16, hence also multiples of 8)
   const sizes = [
     { label: "16B", bytes: 16 },
     { label: "4KiB", bytes: 4 * 1024 },
@@ -94,92 +109,167 @@ async function main() {
   ];
 
   // Run counts
-  const runsArr = [1, 100, 1000];
+  const runsArr = [1, 10, 100];
+  const maxRuns = Math.max(...runsArr);
 
-  // Warm up JIT a bit (doesn't affect the measured loops)
+  // Warmup JIT with small raw loops (outside measurement)
   {
-    const warmCBC = new ModeOfOperation.cbc(key, iv);
-    const warm = padding.pkcs7.pad(prng(256));
-    for (let i = 0; i < 50; i++) {
-      const ct = warmCBC.encrypt(warm);
-      const pt = new ModeOfOperation.cbc(key, iv).decrypt(ct);
-      padding.pkcs7.strip(pt);
+    const warm = prng(16 * 16); // 256B
+    // AES
+    {
+      const aes = new AESRaw(key16);
+      for (let i = 0; i < 50; i++) {
+        const ctE = ecbEncryptRaw(aes, warm);
+        const ptE = ecbDecryptRaw(aes, ctE);
+        const ctC = cbcEncryptRaw(aes, warm, iv16);
+        const ptC = cbcDecryptRaw(aes, ctC, iv16);
+        if (ptE.length !== warm.length || ptC.length !== warm.length)
+          throw new Error("AES warmup mismatch");
+      }
+    }
+    // Twofish
+    {
+      const tf = new TwofishRaw(key16);
+      for (let i = 0; i < 50; i++) {
+        const ctE = ecbEncryptRaw(tf, warm);
+        const ptE = ecbDecryptRaw(tf, ctE);
+        const ctC = cbcEncryptRaw(tf, warm, iv16);
+        const ptC = cbcDecryptRaw(tf, ctC, iv16);
+        if (ptE.length !== warm.length || ptC.length !== warm.length)
+          throw new Error("TF warmup mismatch");
+      }
+    }
+    // Blowfish (8-byte blocks) — warm buffer is multiple of 16, OK
+    {
+      const bf = new BlowfishRaw(keyBF);
+      for (let i = 0; i < 50; i++) {
+        const ctE = ecbEncryptRaw(bf, warm);
+        const ptE = ecbDecryptRaw(bf, ctE);
+        const ctC = cbcEncryptRaw(bf, warm, iv8);
+        const ptC = cbcDecryptRaw(bf, ctC, iv8);
+        if (ptE.length !== warm.length || ptC.length !== warm.length)
+          throw new Error("BF warmup mismatch");
+      }
     }
   }
 
   const rows: Metrics[] = [];
+  const modes: Mode[] = ["ECB", "CBC"] as const;
 
   for (const { label, bytes } of sizes) {
-    // Prepare deterministic plaintext and padding
     const plain = prng(bytes);
-    const padded = padding.pkcs7.pad(plain);
 
-    // Precompute a single ciphertext to reuse in decrypt loops
-    const cbcOnce = new ModeOfOperation.cbc(key, iv);
-    const ciphertextSample = cbcOnce.encrypt(padded);
+    // Build cipher instances ONCE (exclude key schedule from timed loops)
+    const aes = new AESRaw(key16);
+    const tf = new TwofishRaw(key16);
+    const bf = new BlowfishRaw(keyBF);
 
-    // Correctness check once
+    // Precompute ciphertext samples for decrypt loops (outside timing)
+    const pre: Record<Algo, Record<Mode, Uint8Array>> = {
+      AES: {
+        ECB: ecbEncryptRaw(aes, plain),
+        CBC: cbcEncryptRaw(aes, plain, iv16),
+      },
+      Twofish: {
+        ECB: ecbEncryptRaw(tf, plain),
+        CBC: cbcEncryptRaw(tf, plain, iv16),
+      },
+      Blowfish: {
+        ECB: ecbEncryptRaw(bf, plain),
+        CBC: cbcEncryptRaw(bf, plain, iv8),
+      },
+    };
+
+    // Quick correctness checks (once per algo/mode/size)
     {
-      const decOnce = new ModeOfOperation.cbc(key, iv).decrypt(
-        ciphertextSample
-      );
-      const unpadded = padding.pkcs7.strip(decOnce);
-      const ok =
-        unpadded.length === plain.length &&
-        unpadded.every((b, i) => b === plain[i]);
-      if (!ok) {
-        throw new Error("Decrypt correctness check failed (CBC/PKCS#7).");
-      }
+      const aesECB = ecbDecryptRaw(aes, pre.AES.ECB);
+      const aesCBC = cbcDecryptRaw(aes, pre.AES.CBC, iv16);
+      if (!equal(aesECB, plain) || !equal(aesCBC, plain))
+        throw new Error("AES correctness failed");
+
+      const tfECB = ecbDecryptRaw(tf, pre.Twofish.ECB);
+      const tfCBC = cbcDecryptRaw(tf, pre.Twofish.CBC, iv16);
+      if (!equal(tfECB, plain) || !equal(tfCBC, plain))
+        throw new Error("Twofish correctness failed");
+
+      const bfECB = ecbDecryptRaw(bf, pre.Blowfish.ECB);
+      const bfCBC = cbcDecryptRaw(bf, pre.Blowfish.CBC, iv8);
+      if (!equal(bfECB, plain) || !equal(bfCBC, plain))
+        throw new Error("Blowfish correctness failed");
     }
 
     for (const runs of runsArr) {
-      // --- ENCRYPT ----------------------------------------------------------
-      let encChecksum = 0;
-      const encMetrics = measure(() => {
-        for (let i = 0; i < runs; i++) {
-          const cbc = new ModeOfOperation.cbc(key, iv); // fresh IV each time
-          const ct = cbc.encrypt(padded);
-          // cheap checksum so results can't be optimized away
-          encChecksum ^= ct[0] ^ ct[ct.length - 1];
+      for (const mode of modes) {
+        // Selectors for IV/cipher
+        const bench = {
+          AES: { cipher: aes as BlockCipher, iv: iv16 },
+          Twofish: { cipher: tf as BlockCipher, iv: iv16 },
+          Blowfish: { cipher: bf as BlockCipher, iv: iv8 },
+        } as const;
+
+        // ========== ENCRYPT ==========
+        for (const algo of ["AES", "Twofish", "Blowfish"] as const) {
+          let checksum = 0;
+          const { cipher, iv } = bench[algo];
+
+          const enc = measure(() => {
+            for (let i = 0; i < runs; i++) {
+              const ct =
+                mode === "ECB"
+                  ? ecbEncryptRaw(cipher, plain)
+                  : cbcEncryptRaw(cipher, plain, iv);
+              checksum ^= ct[0]! ^ ct[ct.length - 1]!;
+            }
+          });
+
+          rows.push({
+            algo,
+            mode,
+            label,
+            op: "encrypt",
+            runs,
+            sizeBytes: bytes,
+            wallMs: enc.wallMs,
+            cpuUserMs: enc.cpuUserMs,
+            cpuSysMs: enc.cpuSysMs,
+            rssDeltaMB: enc.rssDeltaMB,
+            heapDeltaMB: enc.heapDeltaMB,
+            checksum: checksum >>> 0,
+          });
         }
-      });
 
-      rows.push({
-        label,
-        op: "encrypt",
-        runs,
-        sizeBytes: bytes,
-        wallMs: encMetrics.wallMs,
-        cpuUserMs: encMetrics.cpuUserMs,
-        cpuSysMs: encMetrics.cpuSysMs,
-        rssDeltaMB: encMetrics.rssDeltaMB,
-        heapDeltaMB: encMetrics.heapDeltaMB,
-        checksum: encChecksum >>> 0,
-      });
+        // ========== DECRYPT ==========
+        for (const algo of ["AES", "Twofish", "Blowfish"] as const) {
+          let checksum = 0;
+          const { cipher, iv } = bench[algo];
+          const sample = pre[algo][mode];
 
-      // --- DECRYPT ----------------------------------------------------------
-      let decChecksum = 0;
-      const decMetrics = measure(() => {
-        for (let i = 0; i < runs; i++) {
-          const cbc = new ModeOfOperation.cbc(key, iv);
-          const ptPadded = cbc.decrypt(ciphertextSample);
-          const pt = padding.pkcs7.strip(ptPadded);
-          decChecksum ^= pt[0] ^ pt[pt.length - 1];
+          const dec = measure(() => {
+            for (let i = 0; i < runs; i++) {
+              const pt =
+                mode === "ECB"
+                  ? ecbDecryptRaw(cipher, sample)
+                  : cbcDecryptRaw(cipher, sample, iv);
+              checksum ^= pt[0]! ^ pt[pt.length - 1]!;
+            }
+          });
+
+          rows.push({
+            algo,
+            mode,
+            label,
+            op: "decrypt",
+            runs,
+            sizeBytes: bytes,
+            wallMs: dec.wallMs,
+            cpuUserMs: dec.cpuUserMs,
+            cpuSysMs: dec.cpuSysMs,
+            rssDeltaMB: dec.rssDeltaMB,
+            heapDeltaMB: dec.heapDeltaMB,
+            checksum: checksum >>> 0,
+          });
         }
-      });
-
-      rows.push({
-        label,
-        op: "decrypt",
-        runs,
-        sizeBytes: bytes,
-        wallMs: decMetrics.wallMs,
-        cpuUserMs: decMetrics.cpuUserMs,
-        cpuSysMs: decMetrics.cpuSysMs,
-        rssDeltaMB: decMetrics.rssDeltaMB,
-        heapDeltaMB: decMetrics.heapDeltaMB,
-        checksum: decChecksum >>> 0,
-      });
+      }
     }
   }
 
@@ -188,10 +278,13 @@ async function main() {
   console.log(`Node: ${process.version}`);
   console.log(`Platform: ${process.platform} ${process.arch}`);
   console.log(`PID: ${process.pid}`);
-  console.log(`(Tip: run with --expose-gc for steadier memory deltas)\n`);
+  console.log(`(Tip: run with --expose-gc for steadier memory deltas)`);
+  console.log(`(RAW modes only; no padding; timings exclude key schedule.)\n`);
 
   // pretty table
-  const table = rows.map((r) => ({
+  const rowsForTable = rows.map((r) => ({
+    algo: r.algo,
+    mode: r.mode,
     size: r.label,
     op: r.op,
     runs: r.runs,
@@ -203,24 +296,45 @@ async function main() {
     "heap Δ (MB)": format(r.heapDeltaMB),
     checksum: r.checksum,
   }));
+  console.table(rowsForTable);
 
-  console.table(table);
-
-  // Aggregate throughput (MB/s) hint
+  // Aggregate throughput (MB/s) hint — uses plaintext size for comparability
   console.log("\nThroughput (approx):");
-  for (const op of ["encrypt", "decrypt"] as const) {
-    for (const { label } of sizes) {
-      // pick the 1000-run row for each size/op
-      const row = rows.find(
-        (r) => r.op === op && r.label === label && r.runs === 1000
-      )!;
-      const totalBytes = row.sizeBytes * row.runs;
-      const mbps = totalBytes / (1024 * 1024) / (row.wallMs / 1000);
-      console.log(
-        `${op.toUpperCase()} ${label} x1000 → ~${format(mbps, 2)} MB/s`
-      );
+  const sizeLabels = Array.from(
+    new Set(rows.map((r) => r.label))
+  ) as Metrics["label"][];
+  const modesOrdered: Mode[] = ["ECB", "CBC"];
+
+  for (const algo of ["AES", "Twofish", "Blowfish"] as const) {
+    for (const mode of modesOrdered) {
+      for (const op of ["encrypt", "decrypt"] as const) {
+        for (const label of sizeLabels) {
+          const row = rows.find(
+            (r) =>
+              r.algo === algo &&
+              r.mode === mode &&
+              r.op === op &&
+              r.label === label &&
+              r.runs === maxRuns
+          )!;
+          const totalBytes = row.sizeBytes * row.runs; // uses plaintext size
+          const mbps = totalBytes / (1024 * 1024) / (row.wallMs / 1000);
+          console.log(
+            `${algo} ${mode} ${op.toUpperCase()} ${label} x${maxRuns} → ~${format(
+              mbps,
+              2
+            )} MB/s`
+          );
+        }
+      }
     }
   }
+}
+
+function equal(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }
 
 main().catch((e) => {

@@ -2,7 +2,7 @@
     "name": "my-app",
     "type": "module",
     "scripts": {
-        "test": "node --expose-gc -r ts-node/register src/comparison.ts",
+        "test": "node --expose-gc -r ./src/comparison.ts",
         "eita": "node src/eita.ts"
     },
     "devDependencies": {
