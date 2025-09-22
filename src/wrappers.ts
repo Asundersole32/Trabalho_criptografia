@@ -5,13 +5,14 @@ import { AESRaw } from "./algorithms/aes.ts";
 import {
   toBytes,
   toString,
-  Bytes,
-  Input,
-  Mode,
+  normalizeKey,
+  type Bytes,
+  type Input,
+  type Mode,
 } from "./algorithms/utils/util.ts";
 import { pkcs7Pad, pkcs7Unpad } from "./algorithms/utils/padding.ts";
 import {
-  BlockCipher,
+  type BlockCipher,
   runModeRaw,
   cfbEncryptRaw,
   cfbDecryptRaw,
@@ -97,7 +98,7 @@ export class AESCipher {
   private readonly padding: PaddingKind;
 
   constructor(key: Input, opts: AesOpts = {}) {
-    this.raw = new AESRaw(toBytes(key));
+    this.raw = new AESRaw(normalizeKey(key));
     this.mode = opts.mode ?? "CBC";
     this.iv = opts.iv;
     this.counter = opts.counter;

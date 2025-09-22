@@ -2,8 +2,9 @@
     "name": "my-app",
     "type": "module",
     "scripts": {
-        "test": "node --expose-gc -r ./src/comparison.ts",
-        "eita": "node src/eita.ts"
+        "start": "node src/messages/server.ts",
+        "send": "node src/messages/send.ts ",
+        "test": "node --expose-gc -r src/comparison.ts"
     },
     "devDependencies": {
         "@types/node": "^24.5.2"

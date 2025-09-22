@@ -1,5 +1,12 @@
 import { type Bytes, type Mode, assertMultipleOf } from "./util.ts";
 
+// modes.ts
+function cloneBytes(b: Bytes): Uint8Array {
+  const out = new Uint8Array(b.length);
+  out.set(b);
+  return out;
+}
+
 export interface BlockCipher {
   readonly blockSize: number;
   /** Encrypt exactly one block (blockSize bytes) */
@@ -38,13 +45,13 @@ export function cbcEncryptRaw(
   assertMultipleOf(data.length, bs, "Plaintext");
 
   const out = new Uint8Array(data.length);
-  const prev = iv.slice();
+  const prev = cloneBytes(iv); // ⬅️ was iv.slice()
   const tmp = new Uint8Array(bs);
 
   for (let i = 0; i < data.length; i += bs) {
     for (let j = 0; j < bs; j++) tmp[j] = data[i + j] ^ prev[j];
     cipher.encryptBlock(tmp, 0, out, i);
-    prev.set(out.subarray(i, i + bs));
+    prev.set(out.subarray(i, i + bs)); // update register (NOT the original iv)
   }
   return out;
 }
@@ -59,7 +66,7 @@ export function cbcDecryptRaw(
   assertMultipleOf(data.length, bs, "Ciphertext");
 
   const out = new Uint8Array(data.length);
-  const prev = iv.slice();
+  const prev = cloneBytes(iv); // ⬅️ was iv.slice()
   const tmp = new Uint8Array(bs);
 
   for (let i = 0; i < data.length; i += bs) {
@@ -91,7 +98,7 @@ export function cfbEncryptRaw(
   cipher: BlockCipher,
   data: Bytes,
   iv: Bytes,
-  segmentSize = cipher.blockSize // bytes: 1..blockSize
+  segmentSize = cipher.blockSize
 ): Bytes {
   if (iv.length !== cipher.blockSize)
     throw new Error(`IV must be ${cipher.blockSize} bytes`);
@@ -101,18 +108,18 @@ export function cfbEncryptRaw(
     throw new Error("Plaintext must be multiple of segmentSize");
 
   const out = new Uint8Array(data.length);
-  const reg = iv.slice();
+  const reg = cloneBytes(iv); // ⬅️ was iv.slice()
   const ks = new Uint8Array(cipher.blockSize);
 
   for (let i = 0; i < data.length; i += segmentSize) {
     cipher.encryptBlock(reg, 0, ks, 0);
     for (let j = 0; j < segmentSize; j++) out[i + j] = data[i + j]! ^ ks[j]!;
-    // shift register: drop left, append ciphertext segment
     reg.copyWithin(0, segmentSize);
     reg.set(out.subarray(i, i + segmentSize), cipher.blockSize - segmentSize);
   }
   return out;
 }
+
 export function cfbDecryptRaw(
   cipher: BlockCipher,
   data: Bytes,
@@ -127,7 +134,7 @@ export function cfbDecryptRaw(
     throw new Error("Ciphertext must be multiple of segmentSize");
 
   const out = new Uint8Array(data.length);
-  const reg = iv.slice();
+  const reg = cloneBytes(iv);
   const ks = new Uint8Array(cipher.blockSize);
 
   for (let i = 0; i < data.length; i += segmentSize) {
@@ -144,13 +151,14 @@ export function ofbXorRaw(cipher: BlockCipher, data: Bytes, iv: Bytes): Bytes {
   if (iv.length !== cipher.blockSize)
     throw new Error(`IV must be ${cipher.blockSize} bytes`);
   const out = new Uint8Array(data.length);
-  const reg = iv.slice();
+  const reg = cloneBytes(iv); // ⬅️ was iv.slice()
   const ks = new Uint8Array(cipher.blockSize);
   let idx = cipher.blockSize; // force first refill
+
   for (let i = 0; i < data.length; i++) {
     if (idx === cipher.blockSize) {
       cipher.encryptBlock(reg, 0, ks, 0);
-      reg.set(ks); // next precipher = last keystream
+      reg.set(ks);
       idx = 0;
     }
     out[i] = data[i]! ^ ks[idx++]!;
@@ -159,30 +167,27 @@ export function ofbXorRaw(cipher: BlockCipher, data: Bytes, iv: Bytes): Bytes {
 }
 
 // -------------- CTR (raw, no padding; symmetric) ------
-function incrementBE(counter: Uint8Array) {
-  for (let i = counter.length - 1; i >= 0; i--) {
-    const x = (counter[i] + 1) & 0xff;
-    counter[i] = x;
-    if (x !== 0) break;
-  }
-}
 export function ctrXorRaw(
   cipher: BlockCipher,
   data: Bytes,
-  counter: Bytes // initial counter value (length == blockSize)
+  counter: Bytes
 ): Bytes {
-  if (counter.length !== cipher.blockSize) {
+  if (counter.length !== cipher.blockSize)
     throw new Error(`Counter must be ${cipher.blockSize} bytes`);
-  }
   const out = new Uint8Array(data.length);
-  const ctr = counter.slice();
+  const ctr = cloneBytes(counter); // ⬅️ was counter.slice()
   const ks = new Uint8Array(cipher.blockSize);
   let idx = cipher.blockSize;
 
   for (let i = 0; i < data.length; i++) {
     if (idx === cipher.blockSize) {
       cipher.encryptBlock(ctr, 0, ks, 0);
-      incrementBE(ctr);
+      // increment ctr (big-endian)...
+      for (let j = ctr.length - 1; j >= 0; j--) {
+        const x = (ctr[j] + 1) & 0xff;
+        ctr[j] = x;
+        if (x !== 0) break;
+      }
       idx = 0;
     }
     out[i] = data[i]! ^ ks[idx++]!;
