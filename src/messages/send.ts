@@ -1,33 +1,32 @@
 import { genEd25519 } from "./cryptosuite.ts";
 import { createEnvelope } from "./envelope.ts";
 
-const SERVER = process.argv[2] ?? "http://localhost:8080";
-const MESSAGE = process.argv.slice(3).join(" ") || "hello from the client";
+const RECIPIENT = process.argv[2] ?? "http://localhost:8080";
+const MESSAGE = process.argv.slice(3).join(" ") || "hello from the SENent";
 
 async function main() {
-  // 1) Fetch recipient's (server) static X25519 public key
-  const info = await fetch(`${SERVER}/pubkeys`).then((r) => r.json());
-  const recipientKxPubPem = info.kxPubPem as string;
+  // Pega a chave publica do destinatario (RSA)
+  const info = await fetch(`${RECIPIENT}/pubkeys`).then((r) => r.json());
+  const recipientEncPubPem = info.encPubPem as string;
 
-  // 2) Generate a signing keypair for the client (Ed25519)
-  const clientSIG = genEd25519();
+  // Gerar um par de chaves assimetricas para assinatura digital (Ed25519)
+  const SENentSIG = genEd25519();
 
-  // 3) Build an envelope (ephemeral X25519 inside)
   const env = createEnvelope({
     plaintextUtf8: MESSAGE,
-    senderSigPrivPem: clientSIG.privateKeyPem,
-    senderSigPubPem: clientSIG.publicKeyPem,
-    recipientKxPubPem,
+    senderSigPrivPem: SENentSIG.privateKeyPem,
+    senderSigPubPem: SENentSIG.publicKeyPem,
+    recipientEncPubPem,
   });
 
-  // 4) POST the envelope to the server
-  const resp = await fetch(`${SERVER}/message`, {
+  // Envia a mensagem envelopada
+  const resp = await fetch(`${RECIPIENT}/message`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(env),
   }).then((r) => r.json());
 
-  console.log("\n📤 Sent envelope. Server said:", resp);
+  console.log("\nEnviando mensagem.", resp);
 }
 
 main().catch((err) => {

@@ -2,7 +2,7 @@
     "name": "my-app",
     "type": "module",
     "scripts": {
-        "start": "node src/messages/server.ts",
+        "receive": "node src/messages/receive.ts",
         "send": "node src/messages/send.ts ",
         "test": "node --expose-gc -r src/comparison.ts"
     },

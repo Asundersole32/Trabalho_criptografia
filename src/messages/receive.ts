@@ -1,29 +1,30 @@
-import { genEd25519, genX25519, b64 } from "./cryptosuite.ts";
-import { openEnvelope, type Envelope } from "./envelope.ts";
 import { createServer } from "node:http";
+import { generateKeyPairSync } from "node:crypto";
+import { openEnvelope, type Envelope } from "./envelope.ts";
 
-// === Generate a static X25519 keypair for this server instance ===
-const serverKX = genX25519();
+function genRSA() {
+  const { publicKey, privateKey } = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: "spki", format: "pem" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+  return { publicKeyPem: publicKey, privateKeyPem: privateKey };
+}
+const b64 = (u8: Uint8Array | Buffer) => Buffer.from(u8).toString("base64");
 
-// We don't require the server to sign anything in this demo, but you could
-// publish this if you wanted server-authenticated responses.
-const serverSIG = genEd25519();
+const serverENC = genRSA();
 
 const server = createServer(async (req, res) => {
-  // CORS & JSON default headers (handy for local tests)
   res.setHeader("Content-Type", "application/json");
   res.setHeader("Access-Control-Allow-Origin", "*");
 
   if (req.method === "GET" && req.url === "/pubkeys") {
+    const thumbprint = b64(Buffer.from(serverENC.publicKeyPem)).slice(0, 16);
     res.end(
       JSON.stringify({
-        serverId: "demo-server",
-        kxPubPem: serverKX.publicKeyPem,
-        sigPubPem: serverSIG.publicKeyPem,
-        thumbprint: b64(new TextEncoder().encode(serverKX.publicKeyPem)).slice(
-          0,
-          16
-        ),
+        serverId: "demonstracao-cripto",
+        encPubPem: serverENC.publicKeyPem,
+        thumbprint,
       })
     );
     return;
@@ -37,14 +38,16 @@ const server = createServer(async (req, res) => {
         req.on("end", () => resolve(data));
         req.on("error", reject);
       });
+
       const env: Envelope = JSON.parse(body);
 
       const plaintext = openEnvelope(
         env,
-        serverKX.privateKeyPem,
-        serverKX.publicKeyPem
+        serverENC.privateKeyPem,
+        serverENC.publicKeyPem
       );
-      console.log("\n📥 Received message:", plaintext);
+
+      console.log("\nMensagem recebida:", plaintext);
 
       res.statusCode = 200;
       res.end(JSON.stringify({ ok: true }));
@@ -62,5 +65,5 @@ const server = createServer(async (req, res) => {
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
 server.listen(PORT, () =>
-  console.log(`▶️ demo server on http://localhost:${PORT}`)
+  console.log(`Recebendo dados em http://localhost:${PORT}`)
 );
