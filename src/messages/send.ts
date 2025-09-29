@@ -2,7 +2,7 @@ import { genEd25519 } from "./cryptosuite.ts";
 import { createEnvelope } from "./envelope.ts";
 
 const RECIPIENT = process.argv[2] ?? "http://localhost:8080";
-const MESSAGE = process.argv.slice(3).join(" ") || "hello from the SENent";
+const MESSAGE = process.argv.slice(3).join(" ") || "Hello";
 
 async function main() {
   // Pega a chave publica do destinatario (RSA)

@@ -2,6 +2,8 @@ import { createServer } from "node:http";
 import { generateKeyPairSync } from "node:crypto";
 import { openEnvelope, type Envelope } from "./envelope.ts";
 
+const PORT = process.argv[2] ?? "8080";
+
 function genRSA() {
   const { publicKey, privateKey } = generateKeyPairSync("rsa", {
     modulusLength: 2048,
@@ -63,7 +65,6 @@ const server = createServer(async (req, res) => {
   res.end(JSON.stringify({ error: "not found" }));
 });
 
-const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
 server.listen(PORT, () =>
   console.log(`Recebendo dados em http://localhost:${PORT}`)
 );
