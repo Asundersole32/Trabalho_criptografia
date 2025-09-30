@@ -1,35 +1,65 @@
 import { genEd25519 } from "./cryptosuite.ts";
 import { createEnvelope } from "./envelope.ts";
 
-const RECIPIENT = process.argv[2] ?? "http://localhost:8080";
-const MESSAGE = process.argv.slice(3).join(" ") || "Hello";
+export type RecipientInfo = {
+  serverId?: string;
+  name?: string;
+  encPubPem: string;
+  thumbprint?: string;
+};
 
-async function main() {
-  // Pega a chave publica do destinatario (RSA)
-  const info = await fetch(`${RECIPIENT}/pubkeys`).then((r) => r.json());
-  const recipientEncPubPem = info.encPubPem as string;
+export async function fetchRecipientInfo(
+  baseUrl: string
+): Promise<RecipientInfo> {
+  const url = baseUrl.replace(/\/+$/, "") + "/pubkeys";
+  const info = await fetch(url).then((r) => {
+    if (!r.ok) throw new Error(`Failed to fetch pubkeys from ${url}`);
+    return r.json();
+  });
+  if (!info?.encPubPem) throw new Error("Missing encPubPem in recipient info");
+  return info as RecipientInfo;
+}
 
-  // Gerar um par de chaves assimetricas para assinatura digital (Ed25519)
-  const SENentSIG = genEd25519();
+export type SendOptions = {
+  recipientBaseUrl: string;
+  plaintextUtf8: string;
+  senderSigPrivPem?: string;
+  senderSigPubPem?: string;
+};
 
+export async function sendMessage(opts: SendOptions) {
+  const { recipientBaseUrl, plaintextUtf8 } = opts;
+  if (!recipientBaseUrl || !plaintextUtf8)
+    throw new Error("recipientBaseUrl and plaintextUtf8 are required");
+
+  // 1) Recipient RSA public key
+  const { encPubPem } = await fetchRecipientInfo(recipientBaseUrl);
+
+  // 2) Sender Ed25519 (ephemeral by default)
+  const sender =
+    opts.senderSigPrivPem && opts.senderSigPubPem
+      ? { privateKeyPem: opts.senderSigPrivPem, publicKeyPem: opts.senderSigPubPem }
+      : genEd25519();
+
+  // 3) Create envelope
   const env = createEnvelope({
-    plaintextUtf8: MESSAGE,
-    senderSigPrivPem: SENentSIG.privateKeyPem,
-    senderSigPubPem: SENentSIG.publicKeyPem,
-    recipientEncPubPem,
+    plaintextUtf8,
+    senderSigPrivPem: sender.privateKeyPem,
+    senderSigPubPem: sender.publicKeyPem,
+    recipientEncPubPem: encPubPem,
   });
 
-  // Envia a mensagem envelopada
-  const resp = await fetch(`${RECIPIENT}/message`, {
+  // 4) POST /message
+  const url = recipientBaseUrl.replace(/\/+$/, "") + "/message";
+  const resp = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(env),
-  }).then((r) => r.json());
+  });
 
-  console.log("\nEnviando mensagem.", resp);
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`Send failed (${resp.status}): ${text || resp.statusText}`);
+  }
+  return resp.json();
 }
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});

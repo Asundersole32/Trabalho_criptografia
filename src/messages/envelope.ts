@@ -16,19 +16,19 @@ export type Envelope = {
     hash: "SHA-256";
     sig: "Ed25519";
   };
-  // sender's signing public key so the receiver can verify
+  // Chave publica do remetente, usada para verificar a assinatura (Ed25519)
   senderSigPubPem: string;
 
-  // AES for message
+  // Mensagens AES
   iv_msg_b64: string;
   ct_msg_b64: string;
 
-  // RSA-wrapped symmetric key
+  // Chave simetrica do AES, cifrada com a publica do remetente (RSA)
   enc_symkey_b64: string;
 
-  // authenticity & integrity
-  hash_b64: string;   // SHA-256(message) as sent by the sender (cleartext)
-  sig_b64: string;    // Ed25519(signature over hash bytes)
+  // Autenticidade e Integridade
+  hash_b64: string;   // Hash SHA-256 enviado pelo remetente
+  sig_b64: string;    // Assinatura gerada em cima do Hash (Ed25519)
 };
 
 const b64 = (buf: Uint8Array | Buffer) => Buffer.from(buf).toString("base64");
@@ -73,15 +73,19 @@ export function createEnvelope(opts: {
   );
 
   try {
+    console.log("\n", "=== MENSAGEM ENVIADA ===")
     console.log("REM destinatarioChavePublica=\n" + opts.recipientEncPubPem.trim(), "\n");
-    console.log("REM chaveSimetrica.b64      =", b64(symKey), "\n");
-    console.log("REM remetenteChavePublica   =\n" + opts.senderSigPubPem.trim(), "\n", "\n");
-    console.log("REM sha256(mensagem).b64    =", b64(hash), "\n");
-    console.log("REM sig(hash).b64           =", b64(sig), "\n");
-    console.log("REM ivMensagem              =", b64(ivMsg), "\n");
-    console.log("REM enc(symKey).b64         =", b64(encSymKey), "\n");
-    console.log("REM enc(mensagem).b64       =", b64(ctMsg), "\n");
-    console.log("REM mensagemOriginal        =", opts.plaintextUtf8, "\n");
+    console.log("REM remetenteChavePublica   =\n" + opts.senderSigPubPem.trim(), "\n");
+    console.log("REM remetenteChavePrivada   =\n" + opts.senderSigPrivPem.trim(), "\n");
+    console.log("REM chaveSimetrica.b64      =", b64(symKey));
+    console.log("REM sha256(mensagem).b64    =", b64(hash));
+    console.log("REM sig(hash).b64           =", b64(sig));
+    console.log("REM ivMensagem              =", b64(ivMsg));
+    console.log("REM enc(symKey).b64         =", b64(encSymKey));
+    console.log("REM enc(mensagem).b64       =", b64(ctMsg));
+    console.log("REM mensagemOriginal        =", opts.plaintextUtf8);
+    console.log("========================", "\n")
+
   } catch { }
 
   return {
@@ -125,16 +129,19 @@ export function openEnvelope(
   const hashesMatch = Buffer.compare(senderHash, hashRecalc) === 0;
 
   try {
-    console.log("DES destinatarioChavePublica=\n" + recipientEncPubPem.trim(), "\n");
-    console.log("DES destinatarioChavePrivada=\n" + recipientEncPrivPem.trim(), "\n");
-    console.log("DES chaveSimetrica.b64      =", b64(symKey), "\n");
-    console.log("DES remetenteChavePublica   =\n" + env.senderSigPubPem.trim(), "\n");
-    console.log("DES hashEnviado.b64         =", env.hash_b64, "\n");
-    console.log("DES sig(hash).b64           =", env.sig_b64, "\n");
-    console.log("DES hashComputado.b64       =", b64(hashRecalc), "\n");
-    console.log("DES assinaturaValida?       =", sigValid, "\n");
-    console.log("DES hashValido?             =", hashesMatch, "\n");
-    console.log("DES dec(mensagem)           =", deutf8(pt), "\n");
+    ''
+    console.log("\n", "=== MENSAGEM RECEBIDA ===")
+    console.log("DES destinatarioChavePublica.pem=\n" + recipientEncPubPem.trim(), "\n");
+    console.log("DES destinatarioChavePrivada.pem=\n" + recipientEncPrivPem.trim(), "\n");
+    console.log("DES remetenteChavePublica.pem   =\n" + env.senderSigPubPem.trim(), "\n");
+    console.log("DES chaveSimetrica.b64      =", b64(symKey));
+    console.log("DES hashEnviado.b64         =", env.hash_b64);
+    console.log("DES sig(hash).b64           =", env.sig_b64);
+    console.log("DES hashComputado.b64       =", b64(hashRecalc));
+    console.log("DES assinaturaValida?       =", sigValid);
+    console.log("DES hashValido?             =", hashesMatch);
+    console.log("DES dec(mensagem)           =", deutf8(pt));
+    console.log("=========================", "\n")
   } catch { }
 
   if (!sigValid) throw new Error("Falha na verificação da assinatura.");

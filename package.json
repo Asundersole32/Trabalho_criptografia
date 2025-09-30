@@ -4,12 +4,14 @@
     "scripts": {
         "receive": "node src/messages/receive.ts",
         "send": "node src/messages/send.ts ",
-        "test": "node --expose-gc -r src/comparison.ts"
+        "test": "node --expose-gc src/comparison.ts"
     },
     "devDependencies": {
-        "@types/node": "^24.5.2"
+        "@types/node": "^24.5.2",
+        "@types/ws": "^8.18.1"
     },
     "dependencies": {
-        "ts-node": "^10.9.2"
+        "ts-node": "^10.9.2",
+        "ws": "^8.18.3"
     }
 }

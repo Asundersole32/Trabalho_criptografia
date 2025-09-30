@@ -7,6 +7,7 @@ import {
   createPublicKey,
   createPrivateKey,
   diffieHellman,
+  createHash
 } from "node:crypto";
 
 export type KeyPair = { publicKeyPem: string; privateKeyPem: string };
@@ -29,6 +30,23 @@ export function genX25519(): KeyPair {
       .export({ type: "pkcs8", format: "pem" })
       .toString(),
   };
+}
+
+export function genRSA(): KeyPair {
+  const { publicKey, privateKey } = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: "spki", format: "pem" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+  });
+  return { publicKeyPem: publicKey, privateKeyPem: privateKey };
+}
+
+export function generateThumbprint(keys: KeyPair) {
+  const thumbprint = createHash("sha256")
+    .update(createPublicKey(keys.publicKeyPem).export({ type: "spki", format: "der" }) as Buffer)
+    .digest("base64url")
+    .slice(0, 16);
+  return thumbprint
 }
 
 export function hkdf256(

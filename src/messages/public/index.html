@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>P2P Demo – Inbox</title>
+    <link rel="stylesheet" href="/style.css" />
+</head>
+
+<body>
+    <header>
+        <h1 id="peer-name">Loading…</h1>
+        <div class="meta">
+            <span id="thumb"></span>
+        </div>
+    </header>
+
+    <main>
+        <!-- Send -->
+        <section class="card">
+            <h2>Send a message</h2>
+            <form id="send-form">
+                <label>
+                    Recipient URL
+                    <input type="url" id="recipient" placeholder="http://localhost:8081" required />
+                </label>
+                <label>
+                    Message
+                    <textarea id="message" rows="3" placeholder="Hello 👋" required></textarea>
+                </label>
+                <div class="row">
+                    <button type="submit">Send</button>
+                    <output id="send-status"></output>
+                </div>
+            </form>
+        </section>
+
+        <!-- Contacts (localStorage) -->
+        <section class="card">
+            <h2>Contacts</h2>
+            <form id="contact-form" class="inline-form">
+                <input type="text" id="contact-name" placeholder="Name (e.g., Bob)" />
+                <input type="url" id="contact-url" placeholder="http://localhost:8081" />
+                <button type="submit" title="Save contact">Save</button>
+            </form>
+            <div id="contacts" class="list"></div>
+        </section>
+
+        <!-- Inbox (sessionStorage) -->
+        <section class="card">
+            <h2>Inbox</h2>
+            <div id="inbox"></div>
+            <button id="refresh">Refresh</button>
+        </section>
+
+        <!-- Sent (sessionStorage) -->
+        <section class="card">
+            <h2>Sent</h2>
+            <div id="sentbox"></div>
+        </section>
+    </main>
+
+    <footer>
+        <small>P2P demo. Keys, signatures, and integrity are handled server-side.</small>
+    </footer>
+
+    <script src="/app.js" defer></script>
+</body>
+
+</html>

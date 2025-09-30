@@ -7,6 +7,8 @@
 //   npx ts-node perf.ts
 //   # (recommended for steadier memory readings):
 //   node --expose-gc -r ts-node/register perf.ts
+//
+// Note: "rss peak (MB)" uses process.resourceUsage().maxRSS (lifetime peak for the process).
 
 // ---- raw block ciphers -----------------------------------------------------
 import { AESRaw } from "./algorithms/aes.ts";
@@ -39,10 +41,12 @@ type Metrics = {
   cpuSysMs: number;
   rssDeltaMB: number;
   heapDeltaMB: number;
+  rssPeakMB: number; // <— new: lifetime peak RSS for the process (MiB)
   checksum: number; // anti-DCE sanity
 };
 
-const MB = (n: number) => n / (1024 * 1024);
+const MB = (n: number) => n / (1024 * 1024);          // bytes -> MiB
+const MB_FROM_KiB = (kb: number) => kb / 1024;         // KiB -> MiB
 const format = (n: number, decimals = 3) =>
   Number.isFinite(n) ? Number(n.toFixed(decimals)) : n;
 
@@ -55,6 +59,7 @@ function measure(fn: () => void) {
   maybeGC();
   const mem0 = process.memoryUsage();
   const cpu0 = process.cpuUsage();
+  const ru0 = process.resourceUsage(); // includes maxRSS (in KiB)
   const t0 = process.hrtime.bigint();
 
   fn();
@@ -62,6 +67,7 @@ function measure(fn: () => void) {
   const t1 = process.hrtime.bigint();
   const cpu = process.cpuUsage(cpu0);
   const mem1 = process.memoryUsage();
+  const ru1 = process.resourceUsage();
 
   return {
     wallMs: Number(t1 - t0) / 1e6,
@@ -69,6 +75,7 @@ function measure(fn: () => void) {
     cpuSysMs: cpu.system / 1000,
     rssDeltaMB: MB(mem1.rss - mem0.rss),
     heapDeltaMB: MB(mem1.heapUsed - mem0.heapUsed),
+    rssPeakMB: MB_FROM_KiB(ru1.maxRSS), // absolute lifetime peak for this process
   };
 }
 
@@ -234,6 +241,7 @@ async function main() {
             cpuSysMs: enc.cpuSysMs,
             rssDeltaMB: enc.rssDeltaMB,
             heapDeltaMB: enc.heapDeltaMB,
+            rssPeakMB: enc.rssPeakMB,
             checksum: checksum >>> 0,
           });
         }
@@ -266,6 +274,7 @@ async function main() {
             cpuSysMs: dec.cpuSysMs,
             rssDeltaMB: dec.rssDeltaMB,
             heapDeltaMB: dec.heapDeltaMB,
+            rssPeakMB: dec.rssPeakMB,
             checksum: checksum >>> 0,
           });
         }
@@ -294,6 +303,7 @@ async function main() {
     "cpu sys (ms)": format(r.cpuSysMs),
     "rss Δ (MB)": format(r.rssDeltaMB),
     "heap Δ (MB)": format(r.heapDeltaMB),
+    "rss peak (MB)": format(r.rssPeakMB), // <— new
     checksum: r.checksum,
   }));
   console.table(rowsForTable);

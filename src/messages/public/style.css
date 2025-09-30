@@ -1,0 +1,188 @@
+:root {
+    --bg: #0b0c10;
+    --panel: #15171c;
+    --muted: #9aa3af;
+    --text: #e5e7eb;
+    --accent: #60a5fa;
+    --ok: #34d399;
+    --err: #f87171;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --radius: 14px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Inter, sans-serif;
+    background: linear-gradient(180deg, #0b0c10, #0f1218);
+    color: var(--text);
+}
+
+header {
+    padding: 28px 24px 8px;
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.meta {
+    margin-top: 6px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    opacity: .9;
+}
+
+main {
+    max-width: 960px;
+    padding: 16px 24px 48px;
+    margin: 0 auto;
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 1fr;
+}
+
+.card {
+    background: var(--panel);
+    border: 1px solid #20222a;
+    border-radius: var(--radius);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, .25);
+    padding: 16px;
+}
+
+h2 {
+    margin: 0 0 12px;
+    font-size: 18px;
+}
+
+form label {
+    display: block;
+    margin: 8px 0;
+}
+
+input,
+textarea {
+    width: 100%;
+    border: 1px solid #2a2d37;
+    background: #0f1117;
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 10px;
+    font: inherit;
+}
+
+button {
+    background: var(--accent);
+    color: #05070c;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 999px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+button#refresh {
+    margin-top: 12px;
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.inline-form {
+    display: grid;
+    grid-template-columns: 1.2fr 1.8fr auto;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.list {
+    display: grid;
+    gap: 8px;
+}
+
+.inbox-item,
+.sent-item,
+.contact-item {
+    border: 1px solid #262a35;
+    background: #0f1117;
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.inbox-item,
+.sent-item {
+    margin: 8px 0;
+}
+
+.badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: #1e2636;
+    border: 1px solid #2a2f3e;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+}
+
+.inbox-item pre,
+.sent-item pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: var(--mono);
+    margin: 6px 0 0;
+}
+
+.kv {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    column-gap: 8px;
+    row-gap: 2px;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+}
+
+.contact-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.contact-actions {
+    display: flex;
+    gap: 8px;
+}
+
+output.ok {
+    color: var(--ok);
+}
+
+output.err {
+    color: var(--err);
+}
+
+footer {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 24px 24px;
+    color: var(--muted);
+}
