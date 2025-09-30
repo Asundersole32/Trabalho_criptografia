@@ -290,7 +290,6 @@ async function main() {
   console.log(`(Tip: run with --expose-gc for steadier memory deltas)`);
   console.log(`(RAW modes only; no padding; timings exclude key schedule.)\n`);
 
-  // pretty table
   const rowsForTable = rows.map((r) => ({
     algo: r.algo,
     mode: r.mode,
@@ -303,7 +302,7 @@ async function main() {
     "cpu sys (ms)": format(r.cpuSysMs),
     "rss Δ (MB)": format(r.rssDeltaMB),
     "heap Δ (MB)": format(r.heapDeltaMB),
-    "rss peak (MB)": format(r.rssPeakMB), // <— new
+    "rss peak (MB)": format(r.rssPeakMB),
     checksum: r.checksum,
   }));
   console.table(rowsForTable);
