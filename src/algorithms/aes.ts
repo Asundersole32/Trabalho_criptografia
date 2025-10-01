@@ -1,5 +1,27 @@
-import type { BlockCipher } from "./utils/modes.ts";
 import { S, Si, RCON } from "./utils/constants.ts";
+import { pack4 } from "./utils/util.ts";
+import type { BlockCipher } from "./utils/modes.ts";
+
+const xtime = (x: number) => (((x << 1) ^ ((x & 0x80) ? 0x1b : 0)) & 0xff);
+
+const T2 = new Uint8Array(256);
+const T3 = new Uint8Array(256);
+const T9 = new Uint8Array(256);
+const T11 = new Uint8Array(256);
+const T13 = new Uint8Array(256);
+const T14 = new Uint8Array(256);
+
+for (let a = 0; a < 256; a++) {
+  const x2 = xtime(a);
+  const x4 = xtime(x2);
+  const x8 = xtime(x4);
+  T2[a] = x2;
+  T3[a] = x2 ^ a;       // 2 + 1
+  T9[a] = x8 ^ a;       // 8 + 1
+  T11[a] = x8 ^ x2 ^ a;  // 8 + 2 + 1
+  T13[a] = x8 ^ x4 ^ a;  // 8 + 4 + 1
+  T14[a] = x8 ^ x4 ^ x2; // 8 + 4 + 2
+}
 
 /**
  * Tiny GF(2^8) multiplier used by AES MixColumns.
@@ -22,9 +44,6 @@ function gfMul(a: number, b: number): number {
   return p & 0xff;
 }
 
-/** Pack 4 bytes into a big-endian 32-bit word (as unsigned). */
-const pack = (a: number, b: number, c: number, d: number) =>
-  ((a << 24) | (b << 16) | (c << 8) | d) >>> 0;
 
 /**
  * Raw AES block cipher (ECB primitive only).
@@ -62,7 +81,7 @@ export class AESRaw implements BlockCipher {
     // Seed the first Nk words directly from the key bytes.
     for (let i = 0; i < Nk; i++) {
       const j = 4 * i;
-      w[i] = pack(key[j], key[j + 1], key[j + 2], key[j + 3]);
+      w[i] = pack4(key[j], key[j + 1], key[j + 2], key[j + 3]);
     }
 
     // SubWord and RotWord helpers used in key schedule.
@@ -169,32 +188,23 @@ export class AESRaw implements BlockCipher {
    */
   private mixColumns(state: Uint8Array) {
     for (let c = 0; c < 16; c += 4) {
-      const a0 = state[c]!,
-        a1 = state[c + 1]!,
-        a2 = state[c + 2]!,
-        a3 = state[c + 3]!;
-      state[c] = (gfMul(a0, 2) ^ gfMul(a1, 3) ^ a2 ^ a3) & 0xff;
-      state[c + 1] = (a0 ^ gfMul(a1, 2) ^ gfMul(a2, 3) ^ a3) & 0xff;
-      state[c + 2] = (a0 ^ a1 ^ gfMul(a2, 2) ^ gfMul(a3, 3)) & 0xff;
-      state[c + 3] = (gfMul(a0, 3) ^ a1 ^ a2 ^ gfMul(a3, 2)) & 0xff;
+      const a0 = state[c]!, a1 = state[c + 1]!, a2 = state[c + 2]!, a3 = state[c + 3]!;
+      state[c] = (T2[a0] ^ T3[a1] ^ a2 ^ a3) & 0xff;
+      state[c + 1] = (a0 ^ T2[a1] ^ T3[a2] ^ a3) & 0xff;
+      state[c + 2] = (a0 ^ a1 ^ T2[a2] ^ T3[a3]) & 0xff;
+      state[c + 3] = (T3[a0] ^ a1 ^ a2 ^ T2[a3]) & 0xff;
     }
   }
+
 
   /** Inverse MixColumns using multipliers [14 11 13 9; ...] in GF(2^8). */
   private invMixColumns(state: Uint8Array) {
     for (let c = 0; c < 16; c += 4) {
-      const a0 = state[c]!,
-        a1 = state[c + 1]!,
-        a2 = state[c + 2]!,
-        a3 = state[c + 3]!;
-      state[c] =
-        (gfMul(a0, 14) ^ gfMul(a1, 11) ^ gfMul(a2, 13) ^ gfMul(a3, 9)) & 0xff;
-      state[c + 1] =
-        (gfMul(a0, 9) ^ gfMul(a1, 14) ^ gfMul(a2, 11) ^ gfMul(a3, 13)) & 0xff;
-      state[c + 2] =
-        (gfMul(a0, 13) ^ gfMul(a1, 9) ^ gfMul(a2, 14) ^ gfMul(a3, 11)) & 0xff;
-      state[c + 3] =
-        (gfMul(a0, 11) ^ gfMul(a1, 13) ^ gfMul(a2, 9) ^ gfMul(a3, 14)) & 0xff;
+      const a0 = state[c]!, a1 = state[c + 1]!, a2 = state[c + 2]!, a3 = state[c + 3]!;
+      state[c] = (T14[a0] ^ T11[a1] ^ T13[a2] ^ T9[a3]) & 0xff;
+      state[c + 1] = (T9[a0] ^ T14[a1] ^ T11[a2] ^ T13[a3]) & 0xff;
+      state[c + 2] = (T13[a0] ^ T9[a1] ^ T14[a2] ^ T11[a3]) & 0xff;
+      state[c + 3] = (T11[a0] ^ T13[a1] ^ T9[a2] ^ T14[a3]) & 0xff;
     }
   }
 

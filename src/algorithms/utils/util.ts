@@ -61,7 +61,7 @@ export function normalizeKey(key: any): Uint8Array {
       try {
         const k = new Uint8Array(Buffer.from(s, "base64"));
         if (k.length === 16 || 24 || 32) return k;
-      } catch {}
+      } catch { }
     }
     // try hex
     if (/^[0-9a-fA-F]+$/.test(s)) {
@@ -73,3 +73,38 @@ export function normalizeKey(key: any): Uint8Array {
   }
   throw new Error("Unsupported key type");
 }
+
+
+// Extract individual bytes (little-endian order) from a 32-bit word
+export function b0(x: number) { return x & 0xff; }
+export function b1(x: number) { return (x >>> 8) & 0xff; }
+export function b2(x: number) { return (x >>> 16) & 0xff; }
+export function b3(x: number) { return (x >>> 24) & 0xff; }
+
+/**
+ * Force a JS number into an unsigned 32-bit word.
+ * JS bitwise ops already coerce to 32 bits; `>>> 0` makes it unsigned.
+ */
+export const u32 = (n: number) => n >>> 0;
+
+/** XOR on 32-bit words with unsigned result. */
+export const xor32 = (a: number, b: number) => (a ^ b) >>> 0;
+
+/**
+ * 32-bit addition with wraparound.
+ * `(a + b) | 0` truncates to signed 32-bit; then `>>> 0` makes it unsigned.
+ */
+export const add32 = (a: number, b: number) => ((a + b) | 0) >>> 0;
+
+/** Pack 4 bytes into one 32-bit word (big-endian). */
+export const pack4 = (b0: number, b1: number, b2: number, b3: number) =>
+  u32((b0 << 24) | (b1 << 16) | (b2 << 8) | b3);
+
+/** Unpack a 32-bit word into 4 bytes (big-endian). */
+export const unpack4 = (w: number) =>
+  new Uint8Array([
+    (w >>> 24) & 0xff,
+    (w >>> 16) & 0xff,
+    (w >>> 8) & 0xff,
+    w & 0xff,
+  ]);

@@ -74,18 +74,17 @@ export function createEnvelope(opts: {
 
   try {
     console.log("\n", "=== MENSAGEM ENVIADA ===")
-    console.log("REM destinatarioChavePublica=\n" + opts.recipientEncPubPem.trim(), "\n");
-    console.log("REM remetenteChavePublica   =\n" + opts.senderSigPubPem.trim(), "\n");
-    console.log("REM remetenteChavePrivada   =\n" + opts.senderSigPrivPem.trim(), "\n");
-    console.log("REM chaveSimetrica.b64      =", b64(symKey));
-    console.log("REM sha256(mensagem).b64    =", b64(hash));
-    console.log("REM sig(hash).b64           =", b64(sig));
-    console.log("REM ivMensagem              =", b64(ivMsg));
-    console.log("REM enc(symKey).b64         =", b64(encSymKey));
-    console.log("REM enc(mensagem).b64       =", b64(ctMsg));
-    console.log("REM mensagemOriginal        =", opts.plaintextUtf8);
+    console.log("REM destinatarioChavePublica.pem=\n" + opts.recipientEncPubPem.trim(), "\n");
+    console.log("REM remetenteChavePublica.pem   =\n" + opts.senderSigPubPem.trim(), "\n");
+    console.log("REM remetenteChavePrivada.pem   =\n" + opts.senderSigPrivPem.trim(), "\n");
+    console.log("REM chaveSimetrica.b64          =", b64(symKey));
+    console.log("REM sha256(mensagem).b64        =", b64(hash));
+    console.log("REM sig(hash).b64               =", b64(sig));
+    console.log("REM ivMensagem                  =", b64(ivMsg));
+    console.log("REM enc(symKey).b64             =", b64(encSymKey));
+    console.log("REM enc(mensagem).b64           =", b64(ctMsg));
+    console.log("REM mensagemOriginal            =", opts.plaintextUtf8);
     console.log("========================", "\n")
-
   } catch { }
 
   return {
@@ -129,18 +128,17 @@ export function openEnvelope(
   const hashesMatch = Buffer.compare(senderHash, hashRecalc) === 0;
 
   try {
-    ''
     console.log("\n", "=== MENSAGEM RECEBIDA ===")
     console.log("DES destinatarioChavePublica.pem=\n" + recipientEncPubPem.trim(), "\n");
     console.log("DES destinatarioChavePrivada.pem=\n" + recipientEncPrivPem.trim(), "\n");
     console.log("DES remetenteChavePublica.pem   =\n" + env.senderSigPubPem.trim(), "\n");
-    console.log("DES chaveSimetrica.b64      =", b64(symKey));
-    console.log("DES hashEnviado.b64         =", env.hash_b64);
-    console.log("DES sig(hash).b64           =", env.sig_b64);
-    console.log("DES hashComputado.b64       =", b64(hashRecalc));
-    console.log("DES assinaturaValida?       =", sigValid);
-    console.log("DES hashValido?             =", hashesMatch);
-    console.log("DES dec(mensagem)           =", deutf8(pt));
+    console.log("DES chaveSimetrica.b64          =", b64(symKey));
+    console.log("DES hashEnviado.b64             =", env.hash_b64);
+    console.log("DES sig(hash).b64               =", env.sig_b64);
+    console.log("DES hashComputado.b64           =", b64(hashRecalc));
+    console.log("DES assinaturaValida?           =", sigValid);
+    console.log("DES hashValido?                 =", hashesMatch);
+    console.log("DES dec(mensagem)               =", deutf8(pt));
     console.log("=========================", "\n")
   } catch { }
 

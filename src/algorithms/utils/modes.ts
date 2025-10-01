@@ -9,9 +9,9 @@ function cloneBytes(b: Bytes): Uint8Array {
 
 export interface BlockCipher {
   readonly blockSize: number;
-  /** Encrypt exactly one block (blockSize bytes) */
+  /** Cifrar exatamente um bloco (blockSize bytes) */
   encryptBlock(inp: Bytes, inOff: number, out: Bytes, outOff: number): void;
-  /** Decrypt exactly one block (blockSize bytes) */
+  /** Decifrar exatamente um bloco (blockSize bytes) */
   decryptBlock(inp: Bytes, inOff: number, out: Bytes, outOff: number): void;
 }
 
@@ -30,6 +30,55 @@ export function ecbDecryptRaw(cipher: BlockCipher, data: Bytes): Bytes {
   const out = new Uint8Array(data.length);
   for (let i = 0; i < data.length; i += cipher.blockSize) {
     cipher.decryptBlock(data, i, out, i);
+  }
+  return out;
+}
+
+export function ecbEncryptInplaceRaw(
+  cipher: BlockCipher,
+  data: Bytes,
+  out: Uint8Array
+): Uint8Array {
+  assertMultipleOf(data.length, cipher.blockSize, "Plaintext");
+  if (out.length !== data.length)
+    throw new Error("Output buffer length must equal input length");
+  const bs = cipher.blockSize;
+
+  // If out === data, use a scratch block to avoid aliasing hazards.
+  if (out === (data as any)) {
+    const tmp = new Uint8Array(bs);
+    for (let i = 0; i < data.length; i += bs) {
+      tmp.set((data as Uint8Array).subarray(i, i + bs));
+      cipher.encryptBlock(tmp, 0, out, i);
+    }
+  } else {
+    for (let i = 0; i < data.length; i += bs) {
+      cipher.encryptBlock(data, i, out, i);
+    }
+  }
+  return out;
+}
+
+export function ecbDecryptInplaceRaw(
+  cipher: BlockCipher,
+  data: Bytes,
+  out: Uint8Array
+): Uint8Array {
+  assertMultipleOf(data.length, cipher.blockSize, "Ciphertext");
+  if (out.length !== data.length)
+    throw new Error("Output buffer length must equal input length");
+  const bs = cipher.blockSize;
+
+  if (out === (data as any)) {
+    const tmp = new Uint8Array(bs);
+    for (let i = 0; i < data.length; i += bs) {
+      tmp.set((data as Uint8Array).subarray(i, i + bs));
+      cipher.decryptBlock(tmp, 0, out, i);
+    }
+  } else {
+    for (let i = 0; i < data.length; i += bs) {
+      cipher.decryptBlock(data, i, out, i);
+    }
   }
   return out;
 }
@@ -73,6 +122,55 @@ export function cbcDecryptRaw(
     cipher.decryptBlock(data, i, tmp, 0);
     for (let j = 0; j < bs; j++) out[i + j] = tmp[j] ^ prev[j];
     prev.set(data.subarray(i, i + bs));
+  }
+  return out;
+}
+
+export function cbcEncryptInplaceRaw(
+  cipher: BlockCipher,
+  data: Bytes,
+  iv: Bytes,
+  out: Uint8Array
+): Uint8Array {
+  const bs = cipher.blockSize;
+  if (iv.length !== bs) throw new Error(`IV must be ${bs} bytes`);
+  assertMultipleOf(data.length, bs, "Plaintext");
+  if (out.length !== data.length)
+    throw new Error("Output buffer length must equal input length");
+
+  const prev = cloneBytes(iv);
+  const tmpXor = new Uint8Array(bs); // one scratch block reused
+
+  for (let i = 0; i < data.length; i += bs) {
+    for (let j = 0; j < bs; j++) tmpXor[j] = data[i + j] ^ prev[j];
+    cipher.encryptBlock(tmpXor, 0, out, i);
+    // update CBC register with just-produced ciphertext
+    prev.set(out.subarray(i, i + bs));
+  }
+  return out;
+}
+
+export function cbcDecryptInplaceRaw(
+  cipher: BlockCipher,
+  data: Bytes,
+  iv: Bytes,
+  out: Uint8Array
+): Uint8Array {
+  const bs = cipher.blockSize;
+  if (iv.length !== bs) throw new Error(`IV must be ${bs} bytes`);
+  assertMultipleOf(data.length, bs, "Ciphertext");
+  if (out.length !== data.length)
+    throw new Error("Output buffer length must equal input length");
+
+  const prev = cloneBytes(iv);
+  const tmpDec = new Uint8Array(bs); // decrypted block
+  const tmpCt = new Uint8Array(bs); // saved ciphertext for next prev
+
+  for (let i = 0; i < data.length; i += bs) {
+    tmpCt.set((data as Uint8Array).subarray(i, i + bs)); // save CT
+    cipher.decryptBlock(data, i, tmpDec, 0);
+    for (let j = 0; j < bs; j++) out[i + j] = tmpDec[j] ^ prev[j];
+    prev.set(tmpCt); // advance CBC register
   }
   return out;
 }

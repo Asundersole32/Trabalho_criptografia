@@ -25,6 +25,7 @@
  */
 
 import { P0, P1, MDS0, MDS1, MDS2, MDS3 } from "./utils/constants.ts";
+import { b0, b1, b2, b3 } from './utils/util.ts'
 import type { BlockCipher } from "./utils/modes.ts";
 
 export type Session = [Uint32Array, Uint32Array];
@@ -37,11 +38,6 @@ const ROUND_SUBKEYS = 8;       // Index where round subkeys start (after 8 white
 const SUBKEY_CNT = 40;         // 8 whitening + 32 round subkeys
 const RS_GF_FDBK = 0x14d;      // RS code feedback polynomial (x^8 + x^6 + x^3 + x^2 + 1)
 
-// Extract individual bytes (little-endian order) from a 32-bit word
-function b0(x: number) { return x & 0xff; }
-function b1(x: number) { return (x >>> 8) & 0xff; }
-function b2(x: number) { return (x >>> 16) & 0xff; }
-function b3(x: number) { return (x >>> 24) & 0xff; }
 
 /**
  * rsMDSEncode
